@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lithophane Generator</title>
+    <link rel="stylesheet" href="style.css">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Lithophane Generator</h1>
+            <p>Konverter dine 2D-bilder til stående, 3D-printbare lithophanes (.3mf)</p>
+        </header>
+
+        <main>
+            <section class="controls-panel">
+                <h2>1. Last opp bilde</h2>
+                <div class="control-group">
+                    <input type="file" id="imageInput" accept="image/png, image/jpeg">
+                </div>
+
+                <h2>2. Bildejustering (2D)</h2>
+                <div class="control-group">
+                    <label for="contrastSlider">Kontrast: <span id="contrastValue">0</span></label>
+                    <input type="range" id="contrastSlider" min="-100" max="100" value="0">
+                </div>
+                <div class="control-group">
+                    <label for="brightnessSlider">Lysstyrke: <span id="brightnessValue">0</span></label>
+                    <input type="range" id="brightnessSlider" min="-100" max="100" value="0">
+                </div>
+                <div class="control-group checkbox-group">
+                    <label>
+                        <input type="checkbox" id="invertCheckbox"> 
+                        Inverter bilde (Mørke farger = tynnere plast)
+                    </label>
+                </div>
+
+                <h2>3. 3D Innstillinger</h2>
+                <div class="control-group">
+                    <label for="maxWidthSlider">Maks Bredde (mm): <span id="maxWidthValue">100</span></label>
+                    <input type="range" id="maxWidthSlider" min="50" max="250" value="100">
+                </div>
+                <div class="control-group">
+                    <label for="minThickSlider">Min Tykkelse (mm): <span id="minThickValue">0.6</span></label>
+                    <input type="range" id="minThickSlider" min="0.2" max="2.0" step="0.1" value="0.6">
+                </div>
+                <div class="control-group">
+                    <label for="maxThickSlider">Maks Tykkelse (mm): <span id="maxThickValue">3.0</span></label>
+                    <input type="range" id="maxThickSlider" min="1.0" max="5.0" step="0.1" value="3.0">
+                </div>
+                <div class="control-group">
+                    <label for="borderSlider">Ramme-bredde (mm): <span id="borderValue">3.0</span></label>
+                    <input type="range" id="borderSlider" min="0.0" max="10.0" step="0.5" value="3.0">
+                </div>
+
+                <h2>4. Eksport</h2>
+                <div class="control-group">
+                    <button id="generateBtn" disabled>Generer og Last ned .3MF</button>
+                </div>
+            </section>
+
+            <section class="preview-panel">
+                <h2>Forhåndsvisning (Mono)</h2>
+                <div class="canvas-container">
+                    <canvas id="previewCanvas"></canvas>
+                </div>
+                
+                <h2>Systemlogg</h2>
+                <div class="log-container">
+                    <ul id="systemLog">
+                        <li>[System] Venter på at bruker laster opp bilde...</li>
+                    </ul>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
