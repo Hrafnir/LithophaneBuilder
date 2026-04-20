@@ -38,7 +38,7 @@
                     </label>
                 </div>
 
-                <h2>3. 3D Innstillinger</h2>
+                <h2>3. 3D Innstillinger (Lithophane)</h2>
                 <div class="control-group">
                     <label for="maxWidthSlider">Maks Bredde (mm): <span id="maxWidthValue">100</span></label>
                     <input type="range" id="maxWidthSlider" min="50" max="250" value="100">
@@ -56,7 +56,31 @@
                     <input type="range" id="borderSlider" min="0.0" max="10.0" step="0.5" value="3.0">
                 </div>
 
-                <h2>4. Eksport</h2>
+                <h2>4. Print-in-Place Base & Støtte</h2>
+                <div class="control-group checkbox-group">
+                    <label>
+                        <input type="checkbox" id="enableBaseCheckbox" checked>
+                        Generer Base med Side-støtter
+                    </label>
+                </div>
+                <div class="control-group">
+                    <label for="baseDepthSlider">Base Dybde (mm): <span id="baseDepthValue">50</span></label>
+                    <input type="range" id="baseDepthSlider" min="20" max="100" value="50">
+                </div>
+                <div class="control-group">
+                    <label for="baseHeightSlider">Base Høyde (mm): <span id="baseHeightValue">5.0</span></label>
+                    <input type="range" id="baseHeightSlider" min="2.0" max="10.0" step="0.5" value="5.0">
+                </div>
+                <div class="control-group">
+                    <label for="supportHeightSlider">Side-støtte Høyde (mm): <span id="supportHeightValue">50</span></label>
+                    <input type="range" id="supportHeightSlider" min="10" max="150" value="50">
+                </div>
+                <div class="control-group">
+                    <label for="toleranceSlider">Toleranse for å løsne (mm): <span id="toleranceValue">0.2</span></label>
+                    <input type="range" id="toleranceSlider" min="0.05" max="0.60" step="0.05" value="0.20">
+                </div>
+
+                <h2>5. Eksport</h2>
                 <div class="control-group">
                     <button id="generateBtn" disabled>Generer og Last ned .3MF</button>
                 </div>
