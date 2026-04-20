@@ -1,4 +1,4 @@
-/* Version: #5 */
+/* Version: #10 */
 
 // === SEKSJON: Systemlogg ===
 const systemLog = document.getElementById('systemLog');
@@ -36,11 +36,18 @@ const brightnessSlider = document.getElementById('brightnessSlider');
 const invertCheckbox = document.getElementById('invertCheckbox');
 const generateBtn = document.getElementById('generateBtn');
 
-// Nye DOM-elementer for 3D innstillinger
+// DOM-elementer for 3D innstillinger (fra V5)
 const maxWidthSlider = document.getElementById('maxWidthSlider');
 const minThickSlider = document.getElementById('minThickSlider');
 const maxThickSlider = document.getElementById('maxThickSlider');
 const borderSlider = document.getElementById('borderSlider');
+
+// Nye DOM-elementer for Print-in-Place Base (fra V7/V8)
+const enableBaseCheckbox = document.getElementById('enableBaseCheckbox');
+const baseDepthSlider = document.getElementById('baseDepthSlider');
+const baseHeightSlider = document.getElementById('baseHeightSlider');
+const supportHeightSlider = document.getElementById('supportHeightSlider');
+const toleranceSlider = document.getElementById('toleranceSlider');
 
 // === SEKSJON: Hendelseslyttere for UI ===
 
@@ -81,7 +88,6 @@ imageInput.addEventListener('change', (e) => {
         img.onload = () => {
             originalImage = img;
             logMessage(`Bilde dekodet vellykket: ${img.width}x${img.height} piksler`, 'success');
-            // Når bildet er lastet, tegn det på canvas med en gang
             updateCanvas();
         };
         
@@ -103,15 +109,13 @@ imageInput.addEventListener('change', (e) => {
 
 /**
  * Tegner bildet til canvas og påfører 2D-filtrene (Mono, Kontrast, Lysstyrke)
- * basert på brukerens innstillinger. Denne kalkulerer på pikselnivå.
+ * basert på brukerens innstillinger. FULLT GJENOPPRETTET FRA V5.
  */
 function updateCanvas() {
     if (!originalImage) return;
 
     logMessage('Starter piksel-prosessering for 2D-forhåndsvisning...', 'normal');
     
-    // Sett canvas-dimensjoner basert på bildet (begrenset for visning, 
-    // men vi beholder aspektforholdet)
     const MAX_PREVIEW_WIDTH = 800;
     let drawWidth = originalImage.width;
     let drawHeight = originalImage.height;
@@ -129,7 +133,7 @@ function updateCanvas() {
     // 1. Tegn originalbildet rent på canvas
     ctx.drawImage(originalImage, 0, 0, drawWidth, drawHeight);
 
-    // 2. Hent ut den rå pikseldataen (et gigantisk array av RGBA verdier: [R, G, B, A, R, G, B, A...])
+    // 2. Hent ut den rå pikseldataen
     const imageData = ctx.getImageData(0, 0, drawWidth, drawHeight);
     const data = imageData.data;
 
@@ -140,10 +144,10 @@ function updateCanvas() {
 
     logMessage(`Påfører filtre: Kontrast=${contrast}, Lysstyrke=${brightness}, Invertert=${invert}`, 'normal');
 
-    // Forhåndsberegn kontrastfaktor for algoritmen: (259 * (C + 255)) / (255 * (259 - C))
+    // Forhåndsberegn kontrastfaktor for algoritmen
     const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
 
-    // Iterer gjennom hver piksel. data-arrayet hopper med 4 for hver piksel (R, G, B, Alpha)
+    // Iterer gjennom hver piksel (steg-for-steg for lesbarhet)
     for (let i = 0; i < data.length; i += 4) {
         let r = data[i];
         let g = data[i+1];
@@ -160,7 +164,6 @@ function updateCanvas() {
         b = factor * (b - 128) + 128;
 
         // --- Konverter til Mono (Gråtone) ---
-        // Bruker standard Luminance formel som tilsvarer hvordan det menneskelige øyet oppfatter lysstyrke
         let gray = (0.299 * r) + (0.587 * g) + (0.114 * b);
 
         // Clamping: Sørg for at verdien forblir innenfor 0 - 255
@@ -171,18 +174,16 @@ function updateCanvas() {
             gray = 255 - gray;
         }
 
-        // Skriv den nye gråtone-verdien tilbake til R, G, og B kanalene
-        data[i]     = gray; // Red
-        data[i+1]   = gray; // Green
-        data[i+2]   = gray; // Blue
-        // data[i+3] er Alpha, den rører vi ikke (forblir opak)
+        // Skriv den nye gråtone-verdien tilbake
+        data[i]     = gray;
+        data[i+1]   = gray;
+        data[i+2]   = gray;
     }
 
     // 3. Tegn de modifiserte pikslene tilbake til canvas
     ctx.putImageData(imageData, 0, 0);
     logMessage('Piksel-prosessering fullført. Canvas oppdatert.', 'success');
     
-    // Nå som vi har et behandlet bilde, kan vi la brukeren eksportere det
     generateBtn.disabled = false;
 }
 
@@ -194,7 +195,6 @@ generateBtn.addEventListener('click', async () => {
         return;
     }
 
-    // Lås UI under generering
     generateBtn.disabled = true;
     const originalBtnText = generateBtn.textContent;
     generateBtn.textContent = 'Genererer 3MF... Vennligst vent';
@@ -202,14 +202,12 @@ generateBtn.addEventListener('click', async () => {
     try {
         logMessage('Starter 3D-generering. Henter innstillinger...', 'normal');
 
-        // 1. Hent variabler
+        // 1. Hent variabler for Lithophane
         const maxWidth = parseFloat(maxWidthSlider.value);
         const minThick = parseFloat(minThickSlider.value);
         const maxThick = parseFloat(maxThickSlider.value);
         const borderWidth = parseFloat(borderSlider.value);
-
-        // Vi fastsetter en oppløsning (vertices per millimeter) for å unngå nettleserkrasj
-        const resolution = 4; // 4 punkter per mm gir en god balanse mellom detaljer og filstørrelse
+        const resolution = 4; // 4 punkter per mm
 
         // 2. Regn ut dimensjoner for bilde-delen
         const aspectRatio = canvas.height / canvas.width;
@@ -218,20 +216,29 @@ generateBtn.addEventListener('click', async () => {
 
         const imgCols = Math.floor(imgRealWidth * resolution);
         const imgRows = Math.floor(imgRealHeight * resolution);
-
-        logMessage(`Beregnet bilde-mesh: ${imgCols} x ${imgRows} vertices (${imgRealWidth.toFixed(1)}mm x ${imgRealHeight.toFixed(1)}mm)`, 'normal');
-
-        // 3. Regn ut dimensjoner for rammen
         const borderCells = Math.round(borderWidth * resolution);
+        
         const totalCols = imgCols + (borderCells * 2);
         const totalRows = imgRows + (borderCells * 2);
-
         const totalWidth = totalCols / resolution;
         const totalHeight = totalRows / resolution;
 
-        logMessage(`Total mesh inkl. ramme: ${totalCols} x ${totalRows} vertices. Total stående størrelse: B:${totalWidth.toFixed(1)}mm, H:${totalHeight.toFixed(1)}mm`, 'normal');
+        // 3. Hent variabler for Print-in-Place Base
+        const useBase = enableBaseCheckbox.checked;
+        const baseDepth = parseFloat(baseDepthSlider.value);
+        const baseHeight = parseFloat(baseHeightSlider.value);
+        const supportH = parseFloat(supportHeightSlider.value);
+        const tolerance = parseFloat(toleranceSlider.value);
+        
+        // Faste parametere for Base
+        const slotDepth = 3.0; // Bildet går 3mm ned i basen
+        const slotWidth = maxThick + (tolerance * 2); // Plass til maks tykkelse + toleranse
+        
+        // Offset for å flytte Lithophanen i 3D-rommet hvis basen brukes
+        const lithoOffsetZ = useBase ? (baseHeight - slotDepth) : 0.0;
+        const lithoOffsetY = useBase ? (baseDepth / 2) - (slotWidth / 2) + tolerance : 0.0;
 
-        // 4. Skaler canvasdata ned til vår oppløsning i et temporært canvas for å hente riktige piksler
+        // 4. Skaler canvasdata ned for å hente riktige piksler
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = imgCols;
         tempCanvas.height = imgRows;
@@ -239,54 +246,48 @@ generateBtn.addEventListener('click', async () => {
         tempCtx.drawImage(canvas, 0, 0, imgCols, imgRows);
         const imgData = tempCtx.getImageData(0, 0, imgCols, imgRows).data;
 
-        // 5. Bygg XML strings direkte i minnet
-        logMessage('Kalkulerer 3D vertices (punkter)...', 'normal');
-        let verticesXML = [];
+        // Opprett datastrukturer for 3D-geometri
+        let vertices = [];
+        let triangles = [];
+
+        logMessage('Kalkulerer 3D vertices for Lithophane...', 'normal');
         
-        // Hjelpefunksjon for å hente tykkelse på en gitt (row, col)
         const getThickness = (r, c) => {
-            // Sjekk om vi er i rammen
             if (r < borderCells || r >= totalRows - borderCells || c < borderCells || c >= totalCols - borderCells) {
-                return maxThick; // Rammen er alltid maks tykkelse
+                return maxThick;
             }
-            
-            // Vi er i bildet. Hent piksel.
             const imgR = r - borderCells;
             const imgC = c - borderCells;
             const idx = (imgR * imgCols + imgC) * 4;
-            const gray = imgData[idx]; // R kanal er nok siden vi har gjort bildet grått
-            
-            // Konverter gråtone (0-255) til tykkelse.
-            // Svart (0) = maks tykkelse, Hvit (255) = min tykkelse
+            const gray = imgData[idx];
             return minThick + (1 - (gray / 255)) * (maxThick - minThick);
         };
 
+        // --- GENERER LITHOPHANE (Fullstendig gjenopprettet fra V5, med Offsets) ---
+        
         // Generer Front Vertices
         for (let r = 0; r < totalRows; r++) {
             for (let c = 0; c < totalCols; c++) {
                 let x = (c / resolution);
-                // For at den skal stå oppreist, lar vi Z være høyde.
-                // r=0 er toppen, så Z er høyest her.
-                let z = totalHeight - (r / resolution); 
-                let y = getThickness(r, c); // Y er dybden/tykkelsen
-                verticesXML.push(`<vertex x="${x.toFixed(3)}" y="${y.toFixed(3)}" z="${z.toFixed(3)}"/>`);
+                let z = lithoOffsetZ + totalHeight - (r / resolution); 
+                let y = lithoOffsetY + getThickness(r, c); 
+                vertices.push({x, y, z});
             }
         }
 
-        // Generer Bakside Vertices (Flatt på Y=0)
+        // Generer Bakside Vertices (Flatt på lokal Y=0)
         let backStartIndex = totalRows * totalCols;
         for (let r = 0; r < totalRows; r++) {
             for (let c = 0; c < totalCols; c++) {
                 let x = (c / resolution);
-                let z = totalHeight - (r / resolution);
-                let y = 0;
-                verticesXML.push(`<vertex x="${x.toFixed(3)}" y="${y.toFixed(3)}" z="${z.toFixed(3)}"/>`);
+                let z = lithoOffsetZ + totalHeight - (r / resolution);
+                let y = lithoOffsetY;
+                vertices.push({x, y, z});
             }
         }
 
-        logMessage('Kalkulerer 3D faces (trekanter)...', 'normal');
-        let trianglesXML = [];
-        const addTri = (v1, v2, v3) => trianglesXML.push(`<triangle v1="${v1}" v2="${v2}" v3="${v3}"/>`);
+        logMessage('Kalkulerer solide 3D faces for Lithophane...', 'normal');
+        const addTri = (v1, v2, v3) => triangles.push({v1, v2, v3});
 
         // Front faces
         for (let r = 0; r < totalRows - 1; r++) {
@@ -306,7 +307,7 @@ generateBtn.addEventListener('click', async () => {
             }
         }
 
-        // Vegger: Forbinder forside og bakside
+        // Vegger: Forbinder forside og bakside (Kritisk manifold-kode gjenopprettet)
         // Topp kant
         for (let c = 0; c < totalCols - 1; c++) {
             let f1 = c; let f2 = c + 1;
@@ -334,9 +335,86 @@ generateBtn.addEventListener('click', async () => {
             addTri(f1, b1, b2); addTri(f1, b2, f2);
         }
 
-        logMessage(`Mesh ferdig. ${verticesXML.length} vertices og ${trianglesXML.length} trekanter. Pakker 3MF...`, 'success');
+        // --- GENERER PRINT-IN-PLACE BASE (Integrert uten å slette noe) ---
+        if (useBase) {
+            logMessage('Bygger solid Print-in-Place Base med spor og støtter...', 'normal');
+            
+            const frontSlotY = 5.0; // Hvor front-sporet starter (5mm fra frontkanten)
+            const centerSlotY = lithoOffsetY - tolerance; // Plasserer sentersporet nøyaktig der lithophanen er
 
-        // 6. Bygg 3MF filer (Zippet XML)
+            // Hjelpefunksjon for å generere manifold-bokser til basen
+            const addBox = (x1, y1, z1, x2, y2, z2) => {
+                let s = vertices.length;
+                vertices.push(
+                    {x:x1, y:y1, z:z1}, {x:x2, y:y1, z:z1}, {x:x2, y:y2, z:z1}, {x:x1, y:y2, z:z1}, // Bunn 0,1,2,3
+                    {x:x1, y:y1, z:z2}, {x:x2, y:y1, z:z2}, {x:x2, y:y2, z:z2}, {x:x1, y:y2, z:z2}  // Topp 4,5,6,7
+                );
+                // Faces for boksen (Manifold)
+                addTri(s+0, s+2, s+1); addTri(s+0, s+3, s+2); // Bunn
+                addTri(s+4, s+5, s+6); addTri(s+4, s+6, s+7); // Topp
+                addTri(s+0, s+1, s+5); addTri(s+0, s+5, s+4); // Front
+                addTri(s+3, s+6, s+7); addTri(s+3, s+2, s+6); // Bak
+                addTri(s+0, s+4, s+7); addTri(s+0, s+7, s+3); // Venstre
+                addTri(s+1, s+6, s+2); addTri(s+1, s+5, s+6); // Høyre
+            };
+
+            // 1. Solid bunnplate (under sporene)
+            addBox(0, 0, 0, totalWidth, baseDepth, baseHeight - slotDepth);
+            
+            // 2. Vegg foran front-sporet
+            addBox(0, 0, baseHeight - slotDepth, totalWidth, frontSlotY, baseHeight);
+            
+            // 3. Midtvegg (mellom front-spor og senter-spor)
+            addBox(0, frontSlotY + slotWidth, baseHeight - slotDepth, totalWidth, centerSlotY, baseHeight);
+            
+            // 4. Bakvegg (bak senter-sporet)
+            addBox(0, centerSlotY + slotWidth, baseHeight - slotDepth, totalWidth, baseDepth, baseHeight);
+
+            // 5. Side-støtter (Bygget som tykke, solide trekanter for manifold-sikkerhet)
+            const addSupportTriangle = (isLeft) => {
+                let xInner = isLeft ? -tolerance : totalWidth + tolerance;
+                let xOuter = isLeft ? -tolerance - 2.0 : totalWidth + tolerance + 2.0;
+                let s = vertices.length;
+
+                // Inner punkter (mot lithophanen)
+                vertices.push({x: xInner, y: 0, z: baseHeight}); // 0: Bunn front
+                vertices.push({x: xInner, y: baseDepth, z: baseHeight}); // 1: Bunn bak
+                vertices.push({x: xInner, y: baseDepth/2, z: baseHeight + supportH}); // 2: Topp
+                
+                // Outer punkter (utsiden av støtten)
+                vertices.push({x: xOuter, y: 0, z: baseHeight}); // 3: Bunn front
+                vertices.push({x: xOuter, y: baseDepth, z: baseHeight}); // 4: Bunn bak
+                vertices.push({x: xOuter, y: baseDepth/2, z: baseHeight + supportH}); // 5: Topp
+
+                // Faces (Ulik retning basert på hvilken side for å ha riktige normaler)
+                if (isLeft) {
+                    addTri(s+0, s+1, s+2); // Inner
+                    addTri(s+3, s+5, s+4); // Outer
+                    addTri(s+0, s+3, s+4); addTri(s+0, s+4, s+1); // Bunn
+                    addTri(s+0, s+2, s+5); addTri(s+0, s+5, s+3); // Front/Skrå
+                    addTri(s+1, s+4, s+5); addTri(s+1, s+5, s+2); // Bak/Skrå
+                } else {
+                    addTri(s+0, s+2, s+1); // Inner
+                    addTri(s+3, s+4, s+5); // Outer
+                    addTri(s+0, s+4, s+3); addTri(s+0, s+1, s+4); // Bunn
+                    addTri(s+0, s+5, s+2); addTri(s+0, s+3, s+5); // Front/Skrå
+                    addTri(s+1, s+5, s+4); addTri(s+1, s+2, s+5); // Bak/Skrå
+                }
+            };
+            
+            addSupportTriangle(true);  // Venstre side
+            addSupportTriangle(false); // Høyre side
+        }
+
+        logMessage(`Mesh ferdig. Total Vertices: ${vertices.length}, Trekanter: ${triangles.length}.`, 'success');
+
+        // --- EKSPORT 3MF ---
+        logMessage('Bygger XML for 3MF filen...', 'normal');
+        
+        // Gjør objekt-arrayene om til rene tekststrenger før eksport
+        const verticesXML = vertices.map(v => `<vertex x="${v.x.toFixed(3)}" y="${v.y.toFixed(3)}" z="${v.z.toFixed(3)}"/>`).join('\n');
+        const trianglesXML = triangles.map(t => `<triangle v1="${t.v1}" v2="${t.v2}" v3="${t.v3}"/>`).join('\n');
+
         const zip = new JSZip();
 
         // [Content_Types].xml
@@ -360,8 +438,8 @@ generateBtn.addEventListener('click', async () => {
   <resources>
     <object id="1" type="model">
       <mesh>
-        <vertices>\n${verticesXML.join('\n')}\n</vertices>
-        <triangles>\n${trianglesXML.join('\n')}\n</triangles>
+        <vertices>\n${verticesXML}\n</vertices>
+        <triangles>\n${trianglesXML}\n</triangles>
       </mesh>
     </object>
   </resources>
@@ -371,18 +449,15 @@ generateBtn.addEventListener('click', async () => {
 </model>`;
         zip.folder("3D").file("3dmodel.model", modelXML);
 
-        // 7. Generer og last ned
         logMessage('Komprimerer data, vennligst vent...', 'normal');
         
-        // Siden generateAsync tar litt tid på store filer, bruker vi await
         const content = await zip.generateAsync({type: "blob", compression: "DEFLATE"});
         
         logMessage('Generering fullført! Starter nedlasting.', 'success');
         
-        // Trigger nedlasting
         const link = document.createElement("a");
         link.href = URL.createObjectURL(content);
-        link.download = "lithophane.3mf";
+        link.download = "lithophane_print_in_place.3mf";
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -392,14 +467,13 @@ generateBtn.addEventListener('click', async () => {
         logMessage(`En feil oppstod under generering: ${error.message}`, 'error');
         console.error(error);
     } finally {
-        // Lås opp UI igjen
         generateBtn.disabled = false;
         generateBtn.textContent = originalBtnText;
     }
 });
 
 // Initialisering ved oppstart
-logMessage('Lithophane Generator Engine startet v1.0', 'success');
+logMessage('Lithophane Generator Engine startet v1.2 (Sikker versjon)', 'success');
 logMessage('Venter på bilde...', 'normal');
 
-/* Version: #5 */
+/* Version: #10 */
